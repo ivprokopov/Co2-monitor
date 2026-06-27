@@ -16,11 +16,23 @@
       </div>
       <div class="status"><span id="dot" class="dot"></span><span id="conn">Свързване...</span></div>
     </header>
+
     <section class="grid">
       <article class="card"><div class="label">Въглероден диоксид</div><div id="co2" class="value">—</div><div id="state" class="state">Очакване на данни</div></article>
-      <article class="card"><div class="label">Температура</div><div id="temp" class="value">—</div></article>
-      <article class="card"><div class="label">Влажност</div><div id="hum" class="value">—</div></article>
+      <article class="card"><div class="label">Температура в помещението</div><div id="temp" class="value">—</div></article>
+      <article class="card"><div class="label">Влажност в помещението</div><div id="hum" class="value">—</div></article>
     </section>
+
+    <section class="card chart" style="margin-top:16px">
+      <div class="label">Метеорологично време · с. Дръмша</div>
+      <div class="grid" style="margin-top:14px">
+        <div><div class="label">Условия</div><div id="weatherCondition" class="value" style="font-size:30px">—</div></div>
+        <div><div class="label">Навън</div><div id="weatherTemp" class="value">—</div></div>
+        <div><div class="label">Вятър</div><div id="weatherWind" class="value">—</div></div>
+      </div>
+      <div id="weatherUpdated" class="meta">Зареждане на външна прогноза…</div>
+    </section>
+
     <section class="card chart">
       <h2>CO₂, температура и влажност — последни 12 часа</h2>
       <canvas id="chart"></canvas>
