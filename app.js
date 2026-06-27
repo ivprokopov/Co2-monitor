@@ -1,5 +1,5 @@
 const BASE = window.APP_CONFIG.FIREBASE_URL.replace(/\/$/, "");
-const WEATHER_URL = "https://api.open-meteo.com/v1/forecast?latitude=42.883&longitude=23.050&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,cloud_cover,wind_speed_10m,wind_gusts_10m&timezone=Europe%2FSofia";
+const WEATHER_URL = "https://api.open-meteo.com/v1/forecast?latitude=42.883&longitude=23.050&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,is_day,cloud_cover,wind_speed_10m,wind_gusts_10m&timezone=Europe%2FSofia";
 let chart = null;
 const $ = (id) => document.getElementById(id);
 
@@ -16,9 +16,12 @@ function fmt(ts) {
   }) : "—";
 }
 
-function weatherInfo(code) {
+function weatherInfo(code, isDay) {
+  const night = !Boolean(isDay);
   const map = {
-    0: ["☀️", "Ясно"], 1: ["🌤️", "Предимно ясно"], 2: ["⛅", "Разкъсана облачност"],
+    0: [night ? "🌙" : "☀️", night ? "Ясна нощ" : "Ясно"],
+    1: [night ? "🌙" : "🌤️", night ? "Предимно ясна нощ" : "Предимно ясно"],
+    2: [night ? "☁️" : "⛅", night ? "Разкъсана облачност през нощта" : "Разкъсана облачност"],
     3: ["☁️", "Облачно"], 45: ["🌫️", "Мъгла"], 48: ["🌫️", "Скрежна мъгла"],
     51: ["🌦️", "Слаб ръмеж"], 53: ["🌦️", "Ръмеж"], 55: ["🌧️", "Силен ръмеж"],
     61: ["🌦️", "Слаб дъжд"], 63: ["🌧️", "Дъжд"], 65: ["🌧️", "Силен дъжд"],
@@ -26,18 +29,19 @@ function weatherInfo(code) {
     80: ["🌦️", "Превалявания"], 81: ["🌧️", "Дъждовни превалявания"], 82: ["⛈️", "Силни превалявания"],
     95: ["⛈️", "Гръмотевична буря"], 96: ["⛈️", "Буря с градушка"], 99: ["⛈️", "Силна буря с градушка"]
   };
-  return map[code] || ["🌡️", "Няма данни"];
+  return map[code] || [night ? "🌙" : "🌡️", "Няма данни"];
 }
 
 function renderWeather(payload) {
   const current = payload?.current;
   if (!current) throw new Error("Няма метеорологични данни");
 
-  const [icon, description] = weatherInfo(current.weather_code);
+  const [icon, description] = weatherInfo(current.weather_code, current.is_day);
   $("weatherCondition").innerHTML = `<span class="weather-icon">${icon}</span> ${description}`;
   $("weatherTemp").innerHTML = `${Number(current.temperature_2m).toFixed(1)}<span class="unit">°C</span>`;
   $("weatherWind").innerHTML = `${Math.round(current.wind_speed_10m)}<span class="unit"> km/h</span>`;
-  $("weatherUpdated").textContent = `Усеща се като ${Number(current.apparent_temperature).toFixed(1)}°C · влажност ${current.relative_humidity_2m}% · валеж ${Number(current.precipitation).toFixed(1)} mm · облачност ${current.cloud_cover}% · пориви ${Math.round(current.wind_gusts_10m)} km/h · обновено ${current.time}`;
+  const period = current.is_day ? "ден" : "нощ";
+  $("weatherUpdated").textContent = `${period === "нощ" ? "Нощни условия" : "Дневни условия"} · усеща се като ${Number(current.apparent_temperature).toFixed(1)}°C · влажност ${current.relative_humidity_2m}% · валеж ${Number(current.precipitation).toFixed(1)} mm · облачност ${current.cloud_cover}% · пориви ${Math.round(current.wind_gusts_10m)} km/h · обновено ${current.time}`;
 }
 
 function render(current, raw) {
