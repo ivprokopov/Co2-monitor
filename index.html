@@ -16,31 +16,17 @@
       </div>
       <div class="status"><span id="dot" class="dot"></span><span id="conn">Свързване...</span></div>
     </header>
-
     <section class="grid">
       <article class="card"><div class="label">Въглероден диоксид</div><div id="co2" class="value">—</div><div id="state" class="state">Очакване на данни</div></article>
       <article class="card"><div class="label">Температура</div><div id="temp" class="value">—</div></article>
       <article class="card"><div class="label">Влажност</div><div id="hum" class="value">—</div></article>
     </section>
-
     <section class="card chart">
-      <h2>CO₂ — последни 12 часа</h2>
-      <canvas id="co2Chart"></canvas>
+      <h2>CO₂, температура и влажност — последни 12 часа</h2>
+      <canvas id="chart"></canvas>
+      <div id="updated" class="meta">Последно обновяване: —</div>
+      <div id="err" class="meta"></div>
     </section>
-
-    <section class="charts-grid">
-      <section class="card chart small-chart">
-        <h2>Температура — последни 12 часа</h2>
-        <canvas id="tempChart"></canvas>
-      </section>
-      <section class="card chart small-chart">
-        <h2>Влажност — последни 12 часа</h2>
-        <canvas id="humChart"></canvas>
-      </section>
-    </section>
-
-    <div id="updated" class="meta">Последно обновяване: —</div>
-    <div id="err" class="meta"></div>
   </main>
   <script src="config.js"></script>
   <script src="app.js"></script>
