@@ -4,9 +4,31 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CO₂ Monitor</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <h1>CO₂ Monitor</h1>
-  <p>Dashboard is being configured.</p>
+  <main class="wrap">
+    <header>
+      <div>
+        <h1>CO₂ Monitor</h1>
+        <p class="sub">ESP32-C6 · STCC4 · мониторинг на качеството на въздуха</p>
+      </div>
+      <div class="status"><span id="dot" class="dot"></span><span id="conn">Свързване...</span></div>
+    </header>
+    <section class="grid">
+      <article class="card"><div class="label">Въглероден диоксид</div><div id="co2" class="value">—</div><div id="state" class="state">Очакване на данни</div></article>
+      <article class="card"><div class="label">Температура</div><div id="temp" class="value">—</div></article>
+      <article class="card"><div class="label">Влажност</div><div id="hum" class="value">—</div></article>
+    </section>
+    <section class="card chart">
+      <h2>Последни 24 часа</h2>
+      <canvas id="chart"></canvas>
+      <div id="updated" class="meta">Последно обновяване: —</div>
+      <div id="err" class="meta"></div>
+    </section>
+  </main>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
