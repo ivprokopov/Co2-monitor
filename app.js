@@ -1,9 +1,24 @@
 const BASE = window.APP_CONFIG.FIREBASE_URL.replace(/\/$/, "");
 const WEATHER_URL = "https://api.open-meteo.com/v1/forecast?latitude=42.883&longitude=23.050&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,is_day,cloud_cover,wind_speed_10m,wind_gusts_10m&timezone=Europe%2FSofia";
 const ONLINE_LIMIT_SEC = 120;
+const MICROPYTHON_EPOCH_OFFSET = 946684800;
 
 let chart = null;
 const $ = (id) => document.getElementById(id);
+
+function normalizeTimestamp(ts) {
+  const value = Number(ts || 0);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+
+  // MicroPython on ESP32 reports seconds from 2000-01-01.
+  // Unix timestamps are seconds from 1970-01-01.
+  // Anything below 2010 is treated as MicroPython epoch time.
+  if (value < 1262304000) {
+    return value + MICROPYTHON_EPOCH_OFFSET;
+  }
+
+  return value;
+}
 
 function state(v) {
   if (v < 800) return ["Добро качество на въздуха", "#39d98a"];
@@ -13,7 +28,8 @@ function state(v) {
 }
 
 function fmt(ts) {
-  return ts ? new Date(ts * 1000).toLocaleString("bg-BG", {
+  const normalized = normalizeTimestamp(ts);
+  return normalized ? new Date(normalized * 1000).toLocaleString("bg-BG", {
     day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"
   }) : "—";
 }
@@ -65,7 +81,8 @@ function render(current, raw) {
   const co2 = Number(current?.co2 || 0);
   const temp = Number(current?.temperature || 0);
   const hum = Number(current?.humidity || 0);
-  const updatedAt = Number(current?.updated_at || current?.last_seen || 0);
+  const updatedAtRaw = Number(current?.updated_at || current?.last_seen || 0);
+  const updatedAt = normalizeTimestamp(updatedAtRaw);
   const nowSec = Math.floor(Date.now() / 1000);
   const ageSec = updatedAt ? Math.max(0, nowSec - updatedAt) : Infinity;
   const hasFreshData = Boolean(current && current.co2 !== undefined && updatedAt);
@@ -81,7 +98,7 @@ function render(current, raw) {
     $("state").textContent = "Очакване на данни";
     $("state").style.color = "#9db1cb";
   } else if (!online) {
-    $("state").textContent = `Офлайн — показани са последните данни`;
+    $("state").textContent = "Офлайн — показани са последните данни";
     $("state").style.color = "#ff9f43";
   } else {
     $("state").textContent = quality[0];
@@ -96,13 +113,20 @@ function render(current, raw) {
   if (!hasFreshData) {
     $("conn").textContent = "Няма данни от устройството";
   } else if (online) {
-    $("conn").textContent = `Устройството е онлайн`;
+    $("conn").textContent = "Устройството е онлайн";
   } else {
-    $("conn").textContent = `Устройството е офлайн`;
+    $("conn").textContent = "Устройството е офлайн";
   }
 
-  const minTime = Math.floor(Date.now() / 1000) - 12 * 60 * 60;
+  const minTime = nowSec - 12 * 60 * 60;
   const data = Object.values(raw || {})
+    .map((item) => {
+      const normalizedTimestamp = normalizeTimestamp(item?.timestamp);
+      return {
+        ...item,
+        timestamp: normalizedTimestamp
+      };
+    })
     .filter((item) => item && item.timestamp && item.timestamp >= minTime)
     .sort((a, b) => a.timestamp - b.timestamp);
 
