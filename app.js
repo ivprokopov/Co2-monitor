@@ -8,10 +8,13 @@ const FUTURE_TOLERANCE_SEC = 30;
 let chart = null;
 const $ = (id) => document.getElementById(id);
 
-function el(id) {
-  return document.getElementById(id);
+function safeText(id, text) {
+  const node = $(id);
+  if (node) node.textContent = text;
 }
 
-function setText(id, text) {
-  const node = el(id);
-  if (node) node
+function normalizeTimestamp(ts) {
+  const value = Number(ts || 0);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (value > 150000
