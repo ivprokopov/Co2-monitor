@@ -1,5 +1,7 @@
 const BASE = window.APP_CONFIG.FIREBASE_URL.replace(/\/$/, "");
 const WEATHER_URL = "https://api.open-meteo.com/v1/forecast?latitude=42.883&longitude=23.050&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,is_day,cloud_cover,wind_speed_10m,wind_gusts_10m&timezone=Europe%2FSofia";
+const ONLINE_LIMIT_SEC = 120;
+
 let chart = null;
 const $ = (id) => document.getElementById(id);
 
@@ -14,6 +16,21 @@ function fmt(ts) {
   return ts ? new Date(ts * 1000).toLocaleString("bg-BG", {
     day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"
   }) : "—";
+}
+
+function ageText(ageSec) {
+  if (!Number.isFinite(ageSec) || ageSec < 0) return "няма валиден час";
+  if (ageSec < 60) return `преди ${ageSec} сек.`;
+
+  const min = Math.floor(ageSec / 60);
+  if (min < 60) return `преди ${min} мин.`;
+
+  const hours = Math.floor(min / 60);
+  const restMin = min % 60;
+  if (hours < 24) return restMin ? `преди ${hours} ч. ${restMin} мин.` : `преди ${hours} ч.`;
+
+  const days = Math.floor(hours / 24);
+  return `преди ${days} дн.`;
 }
 
 function weatherInfo(code, isDay) {
@@ -48,19 +65,41 @@ function render(current, raw) {
   const co2 = Number(current?.co2 || 0);
   const temp = Number(current?.temperature || 0);
   const hum = Number(current?.humidity || 0);
+  const updatedAt = Number(current?.updated_at || current?.last_seen || 0);
+  const nowSec = Math.floor(Date.now() / 1000);
+  const ageSec = updatedAt ? Math.max(0, nowSec - updatedAt) : Infinity;
+  const hasFreshData = Boolean(current && current.co2 !== undefined && updatedAt);
+  const online = hasFreshData && ageSec <= ONLINE_LIMIT_SEC;
+  const device = current?.device || current?.board || "неизвестно устройство";
 
   $("co2").innerHTML = co2 ? `${co2} <span class="unit">ppm</span>` : "—";
   $("temp").innerHTML = temp ? `${temp.toFixed(1)} <span class="unit">°C</span>` : "—";
   $("hum").innerHTML = hum ? `${hum.toFixed(1)} <span class="unit">%</span>` : "—";
 
   const quality = state(co2);
-  $("state").textContent = co2 ? quality[0] : "Очакване на данни";
-  $("state").style.color = quality[1];
-  $("updated").textContent = `Последно обновяване: ${fmt(current?.updated_at)}`;
+  if (!co2) {
+    $("state").textContent = "Очакване на данни";
+    $("state").style.color = "#9db1cb";
+  } else if (!online) {
+    $("state").textContent = `Офлайн — показани са последните данни`;
+    $("state").style.color = "#ff9f43";
+  } else {
+    $("state").textContent = quality[0];
+    $("state").style.color = quality[1];
+  }
 
-  const online = Boolean(current && current.co2 !== undefined);
+  $("updated").textContent = updatedAt
+    ? `Последно обновяване: ${fmt(updatedAt)} · ${ageText(ageSec)} · ${device}`
+    : "Последно обновяване: няма данни";
+
   $("dot").classList.toggle("on", online);
-  $("conn").textContent = online ? "Устройството е онлайн" : "Няма данни от устройството";
+  if (!hasFreshData) {
+    $("conn").textContent = "Няма данни от устройството";
+  } else if (online) {
+    $("conn").textContent = `Устройството е онлайн`;
+  } else {
+    $("conn").textContent = `Устройството е офлайн`;
+  }
 
   const minTime = Math.floor(Date.now() / 1000) - 12 * 60 * 60;
   const data = Object.values(raw || {})
@@ -98,15 +137,15 @@ function render(current, raw) {
 
 async function loadIndoor() {
   const [currentResponse, historyResponse] = await Promise.all([
-    fetch(`${BASE}/co2_monitor/current.json`),
-    fetch(`${BASE}/co2_monitor/history.json`)
+    fetch(`${BASE}/co2_monitor/current.json`, { cache: "no-store" }),
+    fetch(`${BASE}/co2_monitor/history.json`, { cache: "no-store" })
   ]);
   render(await currentResponse.json(), await historyResponse.json());
 }
 
 async function loadWeather() {
   try {
-    const response = await fetch(WEATHER_URL);
+    const response = await fetch(WEATHER_URL, { cache: "no-store" });
     renderWeather(await response.json());
   } catch (error) {
     $("weatherUpdated").textContent = `Метеорологичните данни не са налични: ${error.message}`;
