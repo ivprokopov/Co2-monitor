@@ -2,45 +2,761 @@
 <html lang="bg">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CO₂ Monitor</title>
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
+  <meta
+    name="description"
+    content="Диагностичен монитор за STCC4, температура, влажност и експериментална компенсация."
+  >
+
+  <title>STCC4 CO₂ Diagnostic Monitor</title>
+
   <link rel="stylesheet" href="style.css">
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
   <main class="wrap">
-    <header>
+
+    <!-- =====================================================
+         HEADER
+    ====================================================== -->
+    <header class="page-header">
       <div>
-        <h1>CO₂ Monitor</h1>
-        <p class="sub">ESP32-C3 · STCC4 · мониторинг на качеството на въздуха</p>
+        <h1>STCC4 CO₂ Diagnostic Monitor</h1>
+
+        <p class="sub">
+          ESP32-C3 · STCC4 + SHT4x · анализ на температурна
+          и влажностна зависимост
+        </p>
       </div>
-      <div class="status"><span id="dot" class="dot"></span><span id="conn">Свързване...</span></div>
+
+      <div class="status">
+        <span id="dot" class="dot"></span>
+        <span id="conn">Свързване...</span>
+      </div>
     </header>
 
-    <section class="grid">
-      <article class="card"><div class="label">Въглероден диоксид</div><div id="co2" class="value">—</div><div id="state" class="state">Очакване на данни</div></article>
-      <article class="card"><div class="label">Температура в помещението</div><div id="temp" class="value">—</div></article>
-      <article class="card"><div class="label">Влажност в помещението</div><div id="hum" class="value">—</div></article>
+
+    <!-- =====================================================
+         ОСНОВНИ ПОКАЗАТЕЛИ
+    ====================================================== -->
+    <section class="grid metrics-grid">
+
+      <article class="card metric-card">
+        <div class="label">
+          Софтуерно компенсиран CO₂
+        </div>
+
+        <div id="co2" class="value">
+          —
+        </div>
+
+        <div id="state" class="state">
+          Очакване на данни
+        </div>
+
+        <div class="metric-note">
+          Експериментална стойност, референтна среда 400 ppm
+        </div>
+      </article>
+
+
+      <article class="card metric-card">
+        <div class="label">
+          STCC4 native CO₂
+        </div>
+
+        <div id="co2Native" class="value">
+          —
+        </div>
+
+        <div class="metric-note">
+          Филтрирана, без софтуерна компенсация
+        </div>
+      </article>
+
+
+      <article class="card metric-card">
+        <div class="label">
+          STCC4 raw CO₂
+        </div>
+
+        <div id="co2Raw" class="value">
+          —
+        </div>
+
+        <div class="metric-note">
+          Последно сурово измерване
+        </div>
+      </article>
+
+
+      <article class="card metric-card">
+        <div class="label">
+          Температура
+        </div>
+
+        <div id="temp" class="value">
+          —
+        </div>
+      </article>
+
+
+      <article class="card metric-card">
+        <div class="label">
+          Относителна влажност
+        </div>
+
+        <div id="hum" class="value">
+          —
+        </div>
+      </article>
+
+
+      <article class="card metric-card">
+        <div class="label">
+          Прогнозирана грешка
+        </div>
+
+        <div id="predictedError" class="value">
+          —
+        </div>
+
+        <div class="metric-note">
+          Native CO₂ минус моделна корекция
+        </div>
+      </article>
+
     </section>
 
-    <section class="card chart" style="margin-top:16px">
-      <div class="label">Метеорологично време · с. Дръмша</div>
-      <div class="grid" style="margin-top:14px">
-        <div><div class="label">Условия</div><div id="weatherCondition" class="value" style="font-size:30px">—</div></div>
-        <div><div class="label">Навън</div><div id="weatherTemp" class="value">—</div></div>
-        <div><div class="label">Вятър</div><div id="weatherWind" class="value">—</div></div>
+
+    <!-- =====================================================
+         ВРЕМЕ
+    ====================================================== -->
+    <section class="card weather-card">
+      <div class="label">
+        Метеорологично време · с. Дръмша
       </div>
-      <div id="weatherUpdated" class="meta">Зареждане на външна прогноза…</div>
+
+      <div class="grid weather-grid">
+
+        <div>
+          <div class="label">Условия</div>
+
+          <div
+            id="weatherCondition"
+            class="value weather-condition"
+          >
+            —
+          </div>
+        </div>
+
+
+        <div>
+          <div class="label">Навън</div>
+
+          <div id="weatherTemp" class="value">
+            —
+          </div>
+        </div>
+
+
+        <div>
+          <div class="label">Вятър</div>
+
+          <div id="weatherWind" class="value">
+            —
+          </div>
+        </div>
+
+      </div>
+
+      <div id="weatherUpdated" class="meta">
+        Зареждане на външна прогноза…
+      </div>
     </section>
 
-    <section class="card chart">
-      <h2>CO₂, температура и влажност — последни 12 часа</h2>
-      <canvas id="chart"></canvas>
-      <div id="updated" class="meta">Последно обновяване: —</div>
-      <div id="diagnostics" class="meta">Диагностика: —</div>
-      <div id="err" class="meta"></div>
+
+    <!-- =====================================================
+         ИЗБОР НА ПЕРИОД
+    ====================================================== -->
+    <section class="card controls-card">
+
+      <div class="controls-row">
+
+        <div>
+          <div class="label">
+            Период за анализ
+          </div>
+
+          <div
+            id="periodButtons"
+            class="period-buttons"
+          >
+            <button
+              type="button"
+              class="period-btn"
+              data-hours="1"
+            >
+              1 час
+            </button>
+
+            <button
+              type="button"
+              class="period-btn"
+              data-hours="6"
+            >
+              6 часа
+            </button>
+
+            <button
+              type="button"
+              class="period-btn active"
+              data-hours="12"
+            >
+              12 часа
+            </button>
+
+            <button
+              type="button"
+              class="period-btn"
+              data-hours="24"
+            >
+              24 часа
+            </button>
+
+            <button
+              type="button"
+              class="period-btn"
+              data-hours="72"
+            >
+              3 дни
+            </button>
+
+            <button
+              type="button"
+              class="period-btn"
+              data-hours="168"
+            >
+              7 дни
+            </button>
+          </div>
+        </div>
+
+
+        <div class="controls-actions">
+          <button
+            id="refreshButton"
+            type="button"
+            class="action-btn"
+          >
+            Обнови
+          </button>
+
+          <button
+            id="exportCsvButton"
+            type="button"
+            class="action-btn"
+          >
+            Експорт CSV
+          </button>
+        </div>
+
+      </div>
+
     </section>
+
+
+    <!-- =====================================================
+         CO2 TIME SERIES
+    ====================================================== -->
+    <section class="card chart-card">
+
+      <div class="chart-header">
+        <div>
+          <h2>
+            CO₂ във времето
+          </h2>
+
+          <p class="chart-description">
+            Сурови, native филтрирани и експериментално
+            компенсирани показания
+          </p>
+        </div>
+      </div>
+
+      <div class="chart-container large-chart">
+        <canvas id="co2Chart"></canvas>
+      </div>
+
+      <div class="chart-legend-note">
+        Референтна стойност за текущия тест:
+        <strong>400 ppm</strong>
+      </div>
+
+    </section>
+
+
+    <!-- =====================================================
+         TEMPERATURE / HUMIDITY
+    ====================================================== -->
+    <section class="card chart-card">
+
+      <div class="chart-header">
+        <div>
+          <h2>
+            Температура и относителна влажност
+          </h2>
+
+          <p class="chart-description">
+            Измерванията, използвани при анализа на остатъчната
+            зависимост
+          </p>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <canvas id="climateChart"></canvas>
+      </div>
+
+    </section>
+
+
+    <!-- =====================================================
+         ERROR CHART
+    ====================================================== -->
+    <section class="card chart-card">
+
+      <div class="chart-header">
+        <div>
+          <h2>
+            Измервателна и моделна грешка
+          </h2>
+
+          <p class="chart-description">
+            Действителна грешка спрямо приетите 400 ppm,
+            прогнозирана грешка и остатък след компенсацията
+          </p>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <canvas id="errorChart"></canvas>
+      </div>
+
+    </section>
+
+
+    <!-- =====================================================
+         SCATTER CHARTS
+    ====================================================== -->
+    <section class="scatter-grid">
+
+      <article class="card chart-card">
+
+        <div class="chart-header">
+          <div>
+            <h2>
+              Native CO₂ спрямо температурата
+            </h2>
+          </div>
+        </div>
+
+        <div class="chart-container">
+          <canvas id="rawVsTempChart"></canvas>
+        </div>
+
+      </article>
+
+
+      <article class="card chart-card">
+
+        <div class="chart-header">
+          <div>
+            <h2>
+              Native CO₂ спрямо влажността
+            </h2>
+          </div>
+        </div>
+
+        <div class="chart-container">
+          <canvas id="rawVsHumidityChart"></canvas>
+        </div>
+
+      </article>
+
+
+      <article class="card chart-card">
+
+        <div class="chart-header">
+          <div>
+            <h2>
+              Компенсиран CO₂ спрямо температурата
+            </h2>
+          </div>
+        </div>
+
+        <div class="chart-container">
+          <canvas id="correctedVsTempChart"></canvas>
+        </div>
+
+      </article>
+
+
+      <article class="card chart-card">
+
+        <div class="chart-header">
+          <div>
+            <h2>
+              Компенсиран CO₂ спрямо влажността
+            </h2>
+          </div>
+        </div>
+
+        <div class="chart-container">
+          <canvas id="correctedVsHumidityChart"></canvas>
+        </div>
+
+      </article>
+
+    </section>
+
+
+    <!-- =====================================================
+         MODEL DIAGNOSTICS
+    ====================================================== -->
+    <section class="card diagnostics-card">
+
+      <div class="section-heading">
+        <div>
+          <h2>
+            Диагностика на компенсационния модел
+          </h2>
+
+          <p class="chart-description">
+            Тези показатели са диагностични и не представляват
+            фабрична калибрация на STCC4
+          </p>
+        </div>
+      </div>
+
+
+      <div class="diagnostics-grid">
+
+        <div class="diagnostic-item">
+          <span class="diagnostic-label">
+            Брой проби
+          </span>
+
+          <strong id="modelSamples">
+            —
+          </strong>
+        </div>
+
+
+        <div class="diagnostic-item">
+          <span class="diagnostic-label">
+            R²
+          </span>
+
+          <strong id="modelR2">
+            —
+          </strong>
+        </div>
+
+
+        <div class="diagnostic-item">
+          <span class="diagnostic-label">
+            Температурен коефициент
+          </span>
+
+          <strong id="temperatureCoefficient">
+            —
+          </strong>
+        </div>
+
+
+        <div class="diagnostic-item">
+          <span class="diagnostic-label">
+            Влажностен коефициент
+          </span>
+
+          <strong id="humidityCoefficient">
+            —
+          </strong>
+        </div>
+
+
+        <div class="diagnostic-item">
+          <span class="diagnostic-label">
+            Ефект при промяна с 10°C
+          </span>
+
+          <strong id="temperatureEffect">
+            —
+          </strong>
+        </div>
+
+
+        <div class="diagnostic-item">
+          <span class="diagnostic-label">
+            Ефект при промяна с 20% RH
+          </span>
+
+          <strong id="humidityEffect">
+            —
+          </strong>
+        </div>
+
+
+        <div class="diagnostic-item">
+          <span class="diagnostic-label">
+            Моделен intercept
+          </span>
+
+          <strong id="modelIntercept">
+            —
+          </strong>
+        </div>
+
+
+        <div class="diagnostic-item">
+          <span class="diagnostic-label">
+            Остатъчна грешка
+          </span>
+
+          <strong id="residualError">
+            —
+          </strong>
+        </div>
+
+      </div>
+
+
+      <div class="diagnostic-status-grid">
+
+        <div class="diagnostic-status">
+          <span>ASC</span>
+          <strong id="ascStatus">—</strong>
+        </div>
+
+
+        <div class="diagnostic-status">
+          <span>Testing mode</span>
+          <strong id="testingModeStatus">—</strong>
+        </div>
+
+
+        <div class="diagnostic-status">
+          <span>SHT4x връзка</span>
+          <strong id="shtLinkStatus">—</strong>
+        </div>
+
+
+        <div class="diagnostic-status">
+          <span>STCC4 статус</span>
+          <strong id="sensorStatus">—</strong>
+        </div>
+
+      </div>
+
+
+      <div
+        id="modelDiagnosis"
+        class="diagnosis-box"
+      >
+        Очакване на диагностични данни…
+      </div>
+
+    </section>
+
+
+    <!-- =====================================================
+         DATA QUALITY
+    ====================================================== -->
+    <section class="card diagnostics-card">
+
+      <div class="section-heading">
+        <h2>
+          Качество на събрания набор
+        </h2>
+      </div>
+
+
+      <div class="diagnostics-grid">
+
+        <div class="diagnostic-item">
+          <span class="diagnostic-label">
+            Минимална температура
+          </span>
+
+          <strong id="temperatureMin">
+            —
+          </strong>
+        </div>
+
+
+        <div class="diagnostic-item">
+          <span class="diagnostic-label">
+            Максимална температура
+          </span>
+
+          <strong id="temperatureMax">
+            —
+          </strong>
+        </div>
+
+
+        <div class="diagnostic-item">
+          <span class="diagnostic-label">
+            Температурен диапазон
+          </span>
+
+          <strong id="temperatureRange">
+            —
+          </strong>
+        </div>
+
+
+        <div class="diagnostic-item">
+          <span class="diagnostic-label">
+            Минимална влажност
+          </span>
+
+          <strong id="humidityMin">
+            —
+          </strong>
+        </div>
+
+
+        <div class="diagnostic-item">
+          <span class="diagnostic-label">
+            Максимална влажност
+          </span>
+
+          <strong id="humidityMax">
+            —
+          </strong>
+        </div>
+
+
+        <div class="diagnostic-item">
+          <span class="diagnostic-label">
+            Диапазон на влажността
+          </span>
+
+          <strong id="humidityRange">
+            —
+          </strong>
+        </div>
+
+      </div>
+
+
+      <div
+        id="datasetQuality"
+        class="diagnosis-box neutral"
+      >
+        Събират се данни…
+      </div>
+
+    </section>
+
+
+    <!-- =====================================================
+         DATA TABLE
+    ====================================================== -->
+    <section class="card table-card">
+
+      <div class="table-header">
+        <div>
+          <h2>
+            Подробни исторически данни
+          </h2>
+
+          <p class="chart-description">
+            Последните налични проби от избрания период
+          </p>
+        </div>
+
+        <div class="table-controls">
+
+          <label for="tableLimit">
+            Редове:
+          </label>
+
+          <select id="tableLimit">
+            <option value="50">50</option>
+            <option value="100" selected>100</option>
+            <option value="250">250</option>
+            <option value="500">500</option>
+            <option value="all">Всички</option>
+          </select>
+
+        </div>
+      </div>
+
+
+      <div class="table-scroll">
+        <table id="historyTable">
+
+          <thead>
+            <tr>
+              <th>Време</th>
+              <th>Raw CO₂</th>
+              <th>Native filtered</th>
+              <th>Software compensated</th>
+              <th>Температура</th>
+              <th>Влажност</th>
+              <th>Прогнозирана грешка</th>
+              <th>Остатъчна грешка</th>
+              <th>bT</th>
+              <th>bRH</th>
+              <th>R²</th>
+              <th>Статус</th>
+            </tr>
+          </thead>
+
+          <tbody id="historyTableBody">
+            <tr>
+              <td colspan="12">
+                Зареждане на данни…
+              </td>
+            </tr>
+          </tbody>
+
+        </table>
+      </div>
+
+    </section>
+
+
+    <!-- =====================================================
+         FOOTER STATUS
+    ====================================================== -->
+    <section class="card footer-status">
+
+      <div id="updated" class="meta">
+        Последно обновяване: —
+      </div>
+
+      <div id="diagnostics" class="meta">
+        Диагностика: —
+      </div>
+
+      <div id="err" class="meta error-text"></div>
+
+    </section>
+
   </main>
+
+
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
