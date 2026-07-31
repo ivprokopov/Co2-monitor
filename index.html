@@ -35,51 +35,73 @@
       <div class="label">Влажност</div>
       <div id="hum" class="value small">—</div>
     </article>
-
-    <article class="card">
-      <div class="label">Атмосферно налягане</div>
-      <div id="pressure" class="value small">—</div>
-      <div id="pressureTrend" class="state neutral">—</div>
-    </article>
-
-    <article class="card">
-      <div class="label">FRC калибрация</div>
-      <div id="frcStatus" class="status-line">—</div>
-      <div id="frcCorrection" class="meta">Корекция: —</div>
-    </article>
-
-    <article class="card">
-      <div class="label">Сензор</div>
-      <div id="sensorSummary" class="status-line">—</div>
-      <div id="sensorMode" class="meta">Режим: —</div>
-    </article>
   </section>
 
   <section class="card weather-card">
     <div class="weather-top">
-      <div>
+      <div class="weather-main">
         <div class="label">Времето · <span id="locationName">с. Дръмша</span></div>
         <div id="weatherCondition" class="weather-condition">—</div>
+        <div id="weatherUpdated" class="meta">Зареждане на прогнозата…</div>
       </div>
-      <div><div class="label">Навън</div><div id="weatherTemp" class="weather-value">—</div></div>
-      <div><div class="label">Вятър</div><div id="weatherWind" class="weather-value">—</div></div>
-      <div><div class="label">Налягане след 6 ч.</div><div id="pressure6h" class="weather-value">—</div></div>
+
+      <div>
+        <div class="label">Навън</div>
+        <div id="weatherTemp" class="weather-value">—</div>
+      </div>
+
+      <div>
+        <div class="label">Вятър</div>
+        <div id="weatherWind" class="weather-value">—</div>
+      </div>
+
+      <div class="pressure-stack">
+        <div class="pressure-item">
+          <div class="label">Текущо налягане</div>
+          <div id="pressure" class="weather-value pressure-value">—</div>
+          <div id="pressureTrend" class="meta">—</div>
+        </div>
+
+        <div class="pressure-divider"></div>
+
+        <div class="pressure-item">
+          <div class="label">Налягане след 6 часа</div>
+          <div id="pressure6h" class="weather-value pressure-value">—</div>
+        </div>
+      </div>
     </div>
-    <div id="weatherUpdated" class="meta">Зареждане на прогнозата…</div>
   </section>
 
   <section class="card controls">
-    <div class="periods">
-      <button class="period active" data-hours="12">12 ч.</button>
-      <button class="period" data-hours="24">24 ч.</button>
-      <button class="period" data-hours="72">3 дни</button>
-      <button class="period" data-hours="168">7 дни</button>
+    <div class="controls-left">
+      <div class="periods">
+        <button class="period active" data-hours="12">12 ч.</button>
+        <button class="period" data-hours="24">24 ч.</button>
+        <button class="period" data-hours="72">3 дни</button>
+        <button class="period" data-hours="168">7 дни</button>
+      </div>
+
+      <div class="calendar-filter">
+        <label>
+          От
+          <input id="dateFrom" type="date">
+        </label>
+        <label>
+          До
+          <input id="dateTo" type="date">
+        </label>
+        <button id="applyDateBtn">Покажи период</button>
+        <button id="clearDateBtn" class="secondary">Изчисти</button>
+      </div>
     </div>
+
     <div class="actions">
       <button id="refreshBtn">Обнови</button>
       <button id="csvBtn">CSV</button>
     </div>
   </section>
+
+  <div id="rangeSummary" class="range-summary">Период: последните 12 часа</div>
 
   <section class="card chart-card">
     <h2>CO₂ във времето</h2>
@@ -100,17 +122,45 @@
 
   <section class="card compact-diagnostics">
     <h2>Системна диагностика</h2>
-    <div class="diag-grid">
-      <div><span>ASC</span><strong id="asc">—</strong></div>
-      <div><span>Testing mode</span><strong id="testing">—</strong></div>
-      <div><span>SHT4x</span><strong id="sht">—</strong></div>
-      <div><span>STCC4 status</span><strong id="stccStatus">—</strong></div>
-      <div><span>Raw CO₂</span><strong id="rawCo2">—</strong></div>
-      <div><span>Последователност</span><strong id="sequence">—</strong></div>
+
+    <div class="diagnostic-groups">
+      <div class="diagnostic-group">
+        <h3>Калибрация и режим</h3>
+        <div class="diag-grid">
+          <div><span>FRC статус</span><strong id="frcStatus">—</strong></div>
+          <div><span>FRC корекция</span><strong id="frcCorrection">—</strong></div>
+          <div><span>ASC</span><strong id="asc">—</strong></div>
+          <div><span>Testing mode</span><strong id="testing">—</strong></div>
+        </div>
+      </div>
+
+      <div class="diagnostic-group">
+        <h3>Сензор и компенсации</h3>
+        <div class="diag-grid">
+          <div><span>SHT4x</span><strong id="sht">—</strong></div>
+          <div><span>STCC4 status</span><strong id="stccStatus">—</strong></div>
+          <div><span>Режим</span><strong id="sensorMode">—</strong></div>
+          <div><span>Pressure compensation</span><strong id="pressureComp">—</strong></div>
+          <div><span>Подадено налягане</span><strong id="pressureApplied">—</strong></div>
+          <div><span>Източник</span><strong id="pressureSource">—</strong></div>
+        </div>
+      </div>
+
+      <div class="diagnostic-group">
+        <h3>Текущо измерване</h3>
+        <div class="diag-grid">
+          <div><span>Raw CO₂</span><strong id="rawCo2">—</strong></div>
+          <div><span>Native filtered</span><strong id="nativeCo2">—</strong></div>
+          <div><span>Последователност</span><strong id="sequence">—</strong></div>
+          <div><span>Последен pressure update</span><strong id="pressureUpdated">—</strong></div>
+        </div>
+      </div>
     </div>
+
     <div id="error" class="error"></div>
   </section>
 </main>
+
 <script src="config.js"></script>
 <script src="app.js"></script>
 </body>
