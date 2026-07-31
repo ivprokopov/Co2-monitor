@@ -7,6 +7,8 @@ const ONLINE_SEC = 120;
 const MP_OFFSET = 946684800;
 
 let hours = 12;
+let customFrom = null;
+let customTo = null;
 let current = null;
 let history = [];
 let forecastPressure = [];
@@ -23,8 +25,17 @@ function unixTime(v){
   const converted = x + MP_OFFSET;
   return converted > 1500000000 && converted < now + 86400 ? converted : 0;
 }
-function fmt(ts){
-  return ts ? new Date(ts*1000).toLocaleString("bg-BG",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) : "—";
+function fmt(ts, seconds=false){
+  if(!ts) return "—";
+  const options={day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"};
+  if(seconds) options.second="2-digit";
+  return new Date(ts*1000).toLocaleString("bg-BG",options);
+}
+function isoDateLocal(date){
+  const y=date.getFullYear();
+  const m=String(date.getMonth()+1).padStart(2,"0");
+  const d=String(date.getDate()).padStart(2,"0");
+  return `${y}-${m}-${d}`;
 }
 function hex(v){return v === undefined || v === null ? "—" : "0x"+Number(v).toString(16).toUpperCase().padStart(4,"0")}
 function weatherText(code){
@@ -47,10 +58,15 @@ function normalize(h){
     co2:n(x.co2_native_filtered,n(x.co2)),
     t:n(x.temperature),
     rh:n(x.humidity),
-    status:n(x.status,0)
+    status:n(x.status,0),
+    pressure:n(x.surface_pressure_hpa),
+    pressureApplied:n(x.pressure_compensation_pa)
   })).filter(x=>x.ts && Number.isFinite(x.co2)).sort((a,b)=>a.ts-b.ts);
 }
 function filtered(){
+  if(customFrom !== null && customTo !== null){
+    return history.filter(x=>x.ts>=customFrom && x.ts<=customTo);
+  }
   const min=Date.now()/1000-hours*3600;
   return history.filter(x=>x.ts>=min);
 }
@@ -88,24 +104,42 @@ function renderCurrent(){
   const t=n(current.temperature),rh=n(current.humidity);
   const ts=unixTime(current.updated_at||current.last_seen||current.timestamp);
   const online=ts && (Date.now()/1000-ts)<=ONLINE_SEC;
+
   $("dot").classList.toggle("on",online);
   $("conn").textContent=online?"Устройството е онлайн":"Устройството е офлайн";
   $("co2").innerHTML=Number.isFinite(co2)?`${Math.round(co2)} <span class="unit">ppm</span>`:"—";
   $("temp").innerHTML=Number.isFinite(t)?`${t.toFixed(1)} <span class="unit">°C</span>`:"—";
   $("hum").innerHTML=Number.isFinite(rh)?`${rh.toFixed(1)} <span class="unit">%</span>`:"—";
-  const state=airState(co2);$("airState").textContent=online?state[0]:"Офлайн — последни данни";$("airState").style.color=online?state[1]:"#ff9f43";
-  $("updated").textContent=`Последно обновяване: ${fmt(ts)}`;
+
+  const state=airState(co2);
+  $("airState").textContent=online?state[0]:"Офлайн — последни данни";
+  $("airState").style.color=online?state[1]:"#ff9f43";
+  $("updated").textContent=`Последно обновяване: ${fmt(ts,true)}`;
+
   const frc=Boolean(current.frc_applied || current.frc_marker_present);
   $("frcStatus").textContent=frc?`Изпълнена към ${n(current.frc_target_ppm,429)} ppm`:"Предстои";
   $("frcStatus").style.color=frc?"#39d98a":"#ffd166";
-  $("frcCorrection").textContent=`Приложена корекция: ${current.frc_correction_ppm ?? "—"} ppm`;
-  $("sensorSummary").textContent=`${current.internal_rht_link_ok?"SHT4x OK":"SHT4x проблем"} · ${hex(current.status)}`;
-  $("sensorMode").textContent=`Режим: ${current.mode || "—"}`;
+  $("frcCorrection").textContent=current.frc_correction_ppm === null || current.frc_correction_ppm === undefined
+    ? "—"
+    : `${current.frc_correction_ppm} ppm`;
+
   $("asc").textContent=current.asc_enabled?"Включена":"Изключена";
   $("testing").textContent=current.testing_mode?"Активен":"Неактивен";
   $("sht").textContent=current.internal_rht_link_ok?"OK":"Проблем";
   $("stccStatus").textContent=hex(current.status);
+  $("sensorMode").textContent=current.mode || "—";
+
+  const pressureActive=Boolean(current.pressure_compensation_active);
+  $("pressureComp").textContent=pressureActive?"Активна":"Неактивна";
+  $("pressureComp").style.color=pressureActive?"#39d98a":"#ffd166";
+  $("pressureApplied").textContent=Number.isFinite(n(current.pressure_compensation_pa))
+    ? `${Math.round(n(current.pressure_compensation_pa))} Pa`
+    : "—";
+  $("pressureSource").textContent=current.pressure_source || "—";
+  $("pressureUpdated").textContent=fmt(unixTime(current.pressure_last_update));
+
   $("rawCo2").textContent=Number.isFinite(raw)?`${Math.round(raw)} ppm`:"—";
+  $("nativeCo2").textContent=Number.isFinite(co2)?`${Math.round(co2)} ppm`:"—";
   $("sequence").textContent=current.measurement_sequence ?? current.sequence ?? "—";
 }
 function pressureTrend(now,p6){
@@ -119,13 +153,19 @@ async function loadWeather(){
   const r=await fetch(url+"&cb="+Date.now(),{cache:"no-store"});
   if(!r.ok)throw new Error("Open-Meteo "+r.status);
   const d=await r.json(),c=d.current;
+
   $("locationName").textContent=CFG.LOCATION_NAME||"с. Дръмша";
   $("weatherCondition").textContent=weatherText(c.weather_code);
   $("weatherTemp").innerHTML=`${n(c.temperature_2m).toFixed(1)} <span class="unit">°C</span>`;
   $("weatherWind").innerHTML=`${Math.round(n(c.wind_speed_10m))} <span class="unit">km/h</span>`;
   $("pressure").innerHTML=`${n(c.surface_pressure).toFixed(1)} <span class="unit">hPa</span>`;
+
   const vals=d.hourly?.surface_pressure||[],times=d.hourly?.time||[];
-  forecastPressure=times.map((x,i)=>({label:new Date(x).toLocaleString("bg-BG",{hour:"2-digit",minute:"2-digit"}),value:n(vals[i])})).filter(x=>Number.isFinite(x.value));
+  forecastPressure=times.map((x,i)=>({
+    label:new Date(x).toLocaleString("bg-BG",{hour:"2-digit",minute:"2-digit"}),
+    value:n(vals[i])
+  })).filter(x=>Number.isFinite(x.value));
+
   const p6=forecastPressure[Math.min(6,forecastPressure.length-1)]?.value;
   $("pressure6h").innerHTML=Number.isFinite(p6)?`${p6.toFixed(1)} <span class="unit">hPa</span>`:"—";
   $("pressureTrend").textContent=Number.isFinite(p6)?pressureTrend(n(c.surface_pressure),p6):"—";
@@ -138,27 +178,112 @@ async function loadFirebase(){
     fetch(`${BASE}/co2_monitor/history.json?cb=${cb}`,{cache:"no-store"})
   ]);
   if(!a.ok||!b.ok)throw new Error("Грешка при Firebase");
-  current=await a.json();history=normalize(await b.json());
+  current=await a.json();
+  history=normalize(await b.json());
 }
 async function loadAll(){
   try{
     $("error").textContent="";
     await Promise.all([loadFirebase(),loadWeather()]);
-    renderCurrent();renderCharts();
+    renderCurrent();
+    renderCharts();
   }catch(e){
-    $("error").textContent=e.message;$("dot").classList.remove("on");console.error(e);
+    $("error").textContent=e.message;
+    $("dot").classList.remove("on");
+    console.error(e);
   }
 }
-function csv(){
-  const d=filtered();if(!d.length)return alert("Няма данни.");
-  const rows=[["timestamp","datetime","co2_raw","co2_native_filtered","temperature_c","humidity_rh","status"].join(",")];
-  d.forEach(x=>rows.push([x.ts,`"${fmt(x.ts)}"`,x.raw,x.co2,x.t,x.rh,hex(x.status)].join(",")));
-  const blob=new Blob([rows.join("\n")],{type:"text/csv;charset=utf-8"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`stcc4_${hours}h_${Date.now()}.csv`;a.click();URL.revokeObjectURL(a.href);
+function updateRangeSummary(){
+  if(customFrom !== null && customTo !== null){
+    $("rangeSummary").textContent=`Период: ${fmt(customFrom)} – ${fmt(customTo)}`;
+  }else{
+    const labels={12:"последните 12 часа",24:"последните 24 часа",72:"последните 3 дни",168:"последните 7 дни"};
+    $("rangeSummary").textContent=`Период: ${labels[hours] || `последните ${hours} часа`}`;
+  }
 }
+function applyCustomDates(){
+  const fromValue=$("dateFrom").value;
+  const toValue=$("dateTo").value;
+
+  if(!fromValue || !toValue){
+    alert("Избери начална и крайна дата.");
+    return;
+  }
+
+  const fromDate=new Date(`${fromValue}T00:00:00`);
+  const toDate=new Date(`${toValue}T23:59:59`);
+
+  if(toDate < fromDate){
+    alert("Крайната дата трябва да е след началната.");
+    return;
+  }
+
+  customFrom=Math.floor(fromDate.getTime()/1000);
+  customTo=Math.floor(toDate.getTime()/1000);
+
+  document.querySelectorAll(".period").forEach(x=>x.classList.remove("active"));
+  updateRangeSummary();
+  renderCharts();
+}
+function clearCustomDates(){
+  customFrom=null;
+  customTo=null;
+  $("dateFrom").value="";
+  $("dateTo").value="";
+  document.querySelectorAll(".period").forEach(x=>x.classList.toggle("active",Number(x.dataset.hours)===hours));
+  updateRangeSummary();
+  renderCharts();
+}
+function csv(){
+  const d=filtered();
+  if(!d.length)return alert("Няма данни за избрания период.");
+
+  const rows=[["timestamp","datetime","co2_raw","co2_native_filtered","temperature_c","humidity_rh","surface_pressure_hpa","pressure_compensation_pa","status"].join(",")];
+  d.forEach(x=>rows.push([
+    x.ts,`"${fmt(x.ts,true)}"`,x.raw,x.co2,x.t,x.rh,
+    Number.isFinite(x.pressure)?x.pressure:"",
+    Number.isFinite(x.pressureApplied)?x.pressureApplied:"",
+    hex(x.status)
+  ].join(",")));
+
+  const blob=new Blob([rows.join("\n")],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=`stcc4_${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 document.querySelectorAll(".period").forEach(btn=>btn.onclick=()=>{
   document.querySelectorAll(".period").forEach(x=>x.classList.remove("active"));
-  btn.classList.add("active");hours=Number(btn.dataset.hours);renderCharts();
+  btn.classList.add("active");
+  hours=Number(btn.dataset.hours);
+  customFrom=null;
+  customTo=null;
+  $("dateFrom").value="";
+  $("dateTo").value="";
+  updateRangeSummary();
+  renderCharts();
 });
-$("refreshBtn").onclick=loadAll;$("csvBtn").onclick=csv;
-loadAll();setInterval(loadFirebase,15000);setInterval(()=>{renderCurrent();renderCharts()},15000);setInterval(loadWeather,600000);
+
+$("applyDateBtn").onclick=applyCustomDates;
+$("clearDateBtn").onclick=clearCustomDates;
+$("refreshBtn").onclick=loadAll;
+$("csvBtn").onclick=csv;
+
+const today=new Date();
+$("dateTo").max=isoDateLocal(today);
+$("dateFrom").max=isoDateLocal(today);
+
+updateRangeSummary();
+loadAll();
+setInterval(async()=>{
+  try{
+    await loadFirebase();
+    renderCurrent();
+    renderCharts();
+  }catch(e){
+    $("error").textContent=e.message;
+  }
+},15000);
+setInterval(loadWeather,600000);
